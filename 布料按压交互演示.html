@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>弹性布料 · 鼠标按压交互</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d1420'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%232dd4bf' stroke-width='3.5'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%232dd4bf'/%3E%3C/svg%3E" />
+<style>
+:root{
+  --ink:#0d1420; --ink-2:#111c2c;
+  --paper:#eaf2fb; --dim:#9db1c6;
+  --teal:#2dd4bf; --amber:#f5b942;
+  --line:rgba(234,242,251,.10);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden}
+body{
+  background:var(--ink);color:var(--paper);
+  font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  user-select:none;-webkit-user-select:none;cursor:grab;
+}
+body.pressed{cursor:grabbing}
+:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+
+#cloth{position:fixed;inset:0;overflow:hidden;perspective:1300px;perspective-origin:50% 42%}
+#bgLayer{position:absolute;inset:0;z-index:0;perspective:1300px;perspective-origin:50% 42%;background:var(--ink)}
+.cell{position:absolute;top:0;left:0;overflow:hidden;background-repeat:no-repeat;will-change:transform;backface-visibility:hidden;pointer-events:none}
+.page{position:absolute;inset:0;z-index:1;perspective:1300px;perspective-origin:50% 42%;display:flex;flex-direction:column}
+.warp{will-change:transform;backface-visibility:hidden}
+
+.nav{display:flex;align-items:center;justify-content:space-between;padding:30px 52px}
+.logo{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:700;letter-spacing:.5px}
+.logo svg{display:block;flex:none}
+.logo em{font-style:normal;color:var(--teal)}
+.nav-links{display:flex;gap:30px;font-size:14px;color:var(--dim)}
+.nav-links span{cursor:pointer;transition:color .2s}
+.nav-links span:hover{color:var(--paper)}
+.nav-btn{font-size:13px;padding:9px 20px;border-radius:999px;border:1px solid rgba(45,212,191,.45);color:var(--teal);background:transparent;cursor:pointer;transition:background .2s,color .2s}
+.nav-btn:hover{background:rgba(45,212,191,.12)}
+
+.hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 48px}
+.headline{
+  font-size:clamp(46px,7vw,90px);font-weight:900;line-height:1.06;letter-spacing:3px;
+  background:linear-gradient(180deg,#ffffff 28%,#cfe9ff 66%,#7fe7d4);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 6px 26px rgba(0,0,0,.35));
+}
+.sub{margin-top:26px;max-width:620px;font-size:16px;line-height:1.85;color:var(--dim);letter-spacing:.5px}
+.cta{margin-top:38px;display:flex;gap:18px}
+.btn{font-size:16px;font-weight:600;letter-spacing:1px;padding:14px 34px;border-radius:12px;border:none;cursor:pointer;transition:background .2s,box-shadow .2s}
+.btn.primary{background:linear-gradient(135deg,#14b8a6,#0ea5a4);color:#fff;box-shadow:0 14px 30px rgba(20,184,166,.28)}
+.btn.primary:hover{box-shadow:0 18px 40px rgba(20,184,166,.45)}
+.btn.ghost{background:rgba(234,242,251,.06);color:#d7e3f1;border:1px solid var(--line)}
+.btn.ghost:hover{background:rgba(234,242,251,.12)}
+
+.cards{display:flex;justify-content:center;gap:24px;padding:0 48px 46px}
+.card{width:236px;padding:20px 24px;border-radius:14px;background:rgba(234,242,251,.05);border:1px solid var(--line);transition:border-color .2s}
+.card:hover{border-color:rgba(45,212,191,.4)}
+.card b{display:block;font-size:25px;letter-spacing:1px;color:var(--teal);margin-bottom:7px}
+.card span{display:block;font-size:12.5px;line-height:1.7;color:var(--dim)}
+
+.hint{position:absolute;left:44px;bottom:40px;z-index:2;font-size:12.5px;letter-spacing:1px;color:rgba(157,177,198,.75)}
+.gauge{position:absolute;right:44px;bottom:40px;z-index:2;font-size:13px;color:var(--dim);letter-spacing:1px;background:rgba(10,18,30,.5);border:1px solid var(--line);padding:10px 16px;border-radius:12px;font-variant-numeric:tabular-nums}
+
+.modal{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(5,9,16,.55);opacity:0;visibility:hidden;transition:opacity .25s,visibility .25s}
+.modal.open{opacity:1;visibility:visible}
+.doc-panel{width:min(600px,calc(100vw - 60px));padding:32px 36px;border-radius:18px;background:var(--ink-2);border:1px solid var(--line)}
+.doc-panel h3{font-size:22px;letter-spacing:1px;margin-bottom:18px}
+.doc-panel dl{display:grid;grid-template-columns:56px 1fr;gap:12px 14px;margin-bottom:22px;font-size:13.5px;line-height:1.75;color:var(--dim)}
+.doc-panel dt{color:var(--teal);font-weight:600;letter-spacing:1px}
+
+.toast{position:fixed;left:50%;bottom:34px;transform:translate(-50%,16px);z-index:20;font-size:13px;letter-spacing:.5px;color:#d7e3f1;background:rgba(10,18,30,.85);border:1px solid var(--line);padding:11px 22px;border-radius:999px;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* 霓虹墨水特效层：透明、事件穿透、浮于内容之上 */
+#fxCanvas{position:fixed;inset:0;z-index:12;pointer-events:none;display:block}
+</style>
+</head>
+<body>
+<div id="cloth">
+  <div id="bgLayer" aria-hidden="true"></div>
+
+  <div class="page" id="page">
+    <nav class="nav">
+      <div class="logo warp">
+        <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="10.5" fill="none" stroke="#2dd4bf" stroke-width="2.4"/><circle cx="13" cy="13" r="3.6" fill="#2dd4bf"/></svg>
+        <span>Cloth<em>UI</em></span>
+      </div>
+      <div class="nav-links warp">
+        <span data-nav="home">首页</span>
+        <span data-nav="doc">物理模型</span>
+        <span data-nav="doc">渲染方案</span>
+      </div>
+      <button class="nav-btn warp" type="button" id="navDoc">查看文档</button>
+    </nav>
+
+    <header class="hero">
+      <h1 class="headline warp">整块页面<br />都是一匹布</h1>
+      <p class="sub warp">把鼠标当成手指，按下去。页面会像布料一样局部凹陷、拉扯形变，四周泛起波纹，移开后平滑回弹。整页由 DOM 与 CSS matrix3d 驱动，不使用 Canvas。</p>
+      <div class="cta">
+        <button class="btn primary warp" type="button" id="btnDemo">立即体验</button>
+        <button class="btn ghost warp" type="button" id="btnDoc">查看物理参数</button>
+      </div>
+    </header>
+
+    <div class="cards">
+      <div class="card warp"><b>273 节点</b><span>弹簧-阻尼物理网格，鼠标力场实时积分</span></div>
+      <div class="card warp"><b>matrix3d</b><span>每个元素按四角位移求解透视矩阵</span></div>
+      <div class="card warp"><b>区域化渲染</b><span>只重绘按压波及的网格单元，保持流畅</span></div>
+    </div>
+  </div>
+
+  <div class="hint warp" id="hint">移动鼠标按压布料 · 按住加深凹陷</div>
+  <div class="gauge warp" id="gauge"><span id="gaugeInner">按压强度 0%</span></div>
+
+  <div class="modal" id="docModal" aria-hidden="true">
+    <div class="doc-panel warp" id="docPanel" role="dialog" aria-modal="true" aria-labelledby="docTitle">
+      <h3 id="docTitle">物理模型与渲染方案</h3>
+      <dl>
+        <dt>物理</dt><dd>20×12 网格、273 个弹簧-阻尼节点；鼠标处为内聚凹陷力场，强度随距离平滑衰减，移开后平滑回弹。</dd>
+        <dt>渲染</dt><dd>背景分片为 240 个网格单元；每个 DOM 元素按四角位移求解透视矩阵 matrix3d，全程无 Canvas。</dd>
+        <dt>波纹</dt><dd>鼠标移动速度超过阈值时，按压点持续产生向外传播、随时间衰减的正弦波纹。</dd>
+        <dt>参数</dt><dd>凹陷深度 46px · 影响半径 300px · 波纹波长约 260px · 仅重绘受影响区域。</dd>
+      </dl>
+      <button class="btn ghost" type="button" id="docClose">关闭</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <canvas id="fxCanvas" aria-hidden="true"></canvas>
+</div>
+
+<script src="gsap.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ============ 元素引用 ============ */
+  var cloth = document.getElementById('cloth');
+  var bgLayer = document.getElementById('bgLayer');
+  var gaugeInner = document.getElementById('gaugeInner');
+  var toastEl = document.getElementById('toast');
+  var docModal = document.getElementById('docModal');
+  var docPanel = document.getElementById('docPanel');
+
+  /* ============ 常量 ============ */
+  var COLS = 20, ROWS = 12;          // 网格：20×12 单元 → (COLS+1)×(ROWS+1)=273 个节点
+  var DEPTH = 46;                    // 按压凹陷深度 px
+  var RADIUS = 300;                  // 主凹陷影响半径 px
+  var BASIN = 1.45;                  // 外围浅凹陷盆地的半径倍数
+  var RIP_R = 400;                   // 波纹传播半径 px
+
+  /* ============ 状态 ============ */
+  var W = 0, H = 0, cw = 0, ch = 0;
+  var nodes = [], cells = [], warpEls = [], ripples = [];
+  var mouse = { x: -99999, y: -99999, active: false, pressed: false, strength: 1 };
+  var demo = { active: false, t0: 0, dur: 5200 };   // 自动按压演示
+  var lastRipple = 0;
+  var touchedCells = new Set(), touchedEls = new Set();
+  var dirty = true;
+  var lastFrame = performance.now();
+  var REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ============ 工具函数 ============ */
+  function bil(a, b, c, d, fx, fy) {
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+  }
+  function nodeAt(i, j) { return nodes[j * (COLS + 1) + i]; }
+
+  // 双线性采样节点位移场（返回世界坐标处的 dx, dy）
+  function sample(px, py) {
+    var gx = px / cw, gy = py / ch;
+    var i = Math.floor(gx), j = Math.floor(gy);
+    if (i < 0) i = 0; if (i > COLS - 1) i = COLS - 1;
+    if (j < 0) j = 0; if (j > ROWS - 1) j = ROWS - 1;
+    var fx = Math.min(1, Math.max(0, gx - i));
+    var fy = Math.min(1, Math.max(0, gy - j));
+    var n00 = nodeAt(i, j), n10 = nodeAt(i + 1, j), n01 = nodeAt(i, j + 1), n11 = nodeAt(i + 1, j + 1);
+    return {
+      dx: bil(n00.x - n00.rx, n10.x - n10.rx, n01.x - n01.rx, n11.x - n11.rx, fx, fy),
+      dy: bil(n00.y - n00.ry, n10.y - n10.ry, n01.y - n01.ry, n11.y - n11.ry, fx, fy)
+    };
+  }
+
+  // 由四角映射求解透视 matrix3d（源矩形 w×h → 目标四边形）
+  function quadMatrix(w, h, d0, d1, d2, d3) {
+    var x0 = d0[0], y0 = d0[1], x1 = d1[0], y1 = d1[1], x2 = d2[0], y2 = d2[1], x3 = d3[0], y3 = d3[1];
+    var dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3;
+    var dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+    var a13 = 0, a23 = 0;
+    if (Math.abs(dx3) > 1e-6 || Math.abs(dy3) > 1e-6) {
+      var det = dx1 * dy2 - dx2 * dy1;
+      if (Math.abs(det) > 1e-6) {
+        a13 = (dx3 * dy2 - dx2 * dy3) / det;
+        a23 = (dx1 * dy3 - dx3 * dy1) / det;
+      }
+    }
+    var a11 = x1 - x0 + a13 * x1, a21 = x3 - x0 + a23 * x3, a31 = x0;
+    var a12 = y1 - y0 + a13 * y1, a22 = y3 - y0 + a23 * y3, a32 = y0;
+    var m = [
+      a11 / w, a12 / w, 0, a13 / w,
+      a21 / h, a22 / h, 0, a23 / h,
+      0, 0, 1, 0,
+      a31, a32, 0, 1
+    ];
+    var out = 'matrix3d(';
+    for (var k = 0; k < 16; k++) { out += m[k].toFixed(3); if (k < 15) out += ','; }
+    return out + ')';
+  }
+
+  /* ============ 网格构建 ============ */
+  function build() {
+    var r = cloth.getBoundingClientRect();
+    W = r.width; H = r.height;
+    cw = W / COLS; ch = H / ROWS;
+
+    nodes = [];
+    for (var j = 0; j <= ROWS; j++) {
+      for (var i = 0; i <= COLS; i++) {
+        var rx = i * cw, ry = j * ch;
+        nodes.push({ rx: rx, ry: ry, x: rx, y: ry, vx: 0, vy: 0 });
+      }
+    }
+
+    // 背景：按视口尺寸生成的渐变（px 单位，保证单元切片无缝）
+    var g = [
+      'radial-gradient(620px circle at ' + (W * 0.16 | 0) + 'px ' + (H * 0.22 | 0) + 'px, rgba(45,212,191,0.20), transparent 62%)',
+      'radial-gradient(760px circle at ' + (W * 0.82 | 0) + 'px ' + (H * 0.66 | 0) + 'px, rgba(245,185,66,0.11), transparent 60%)',
+      'radial-gradient(1150px circle at ' + (W * 0.5 | 0) + 'px ' + (H * 1.18 | 0) + 'px, rgba(13,148,136,0.22), transparent 70%)'
+    ].join(', ');
+
+    bgLayer.innerHTML = '';
+    cells = [];
+    for (j = 0; j < ROWS; j++) {
+      for (i = 0; i < COLS; i++) {
+        var el = document.createElement('div');
+        el.className = 'cell';
+        el.style.width = cw + 'px';
+        el.style.height = ch + 'px';
+        el.style.left = (i * cw) + 'px';
+        el.style.top = (j * ch) + 'px';
+        el.style.backgroundImage = g;
+        el.style.backgroundSize = W + 'px ' + H + 'px';
+        el.style.backgroundPosition = (-(i * cw)) + 'px ' + (-(j * ch)) + 'px';
+        bgLayer.appendChild(el);
+        cells.push({
+          el: el, ci: i, rj: j,
+          tl: j * (COLS + 1) + i, tr: j * (COLS + 1) + i + 1,
+          bl: (j + 1) * (COLS + 1) + i, br: (j + 1) * (COLS + 1) + i + 1
+        });
+      }
+    }
+
+    // 待扭曲的 DOM 元素（缓存布局矩形；隐藏的文档面板除外，打开时再测量）
+    warpEls = [];
+    var cr = cloth.getBoundingClientRect();
+    var list = document.querySelectorAll('.warp');
+    for (var q = 0; q < list.length; q++) {
+      var e = list[q];
+      if (e.id === 'docPanel') continue;
+      var er = e.getBoundingClientRect();
+      warpEls.push({ el: e, x: er.left - cr.left, y: er.top - cr.top, w: er.width, h: er.height });
+    }
+
+    resetTransforms();
+    sizeFx();
+  }
+
+  function resetTransforms() {
+    for (var i = 0; i < cells.length; i++) cells[i].el.style.transform = '';
+    for (var i = 0; i < warpEls.length; i++) warpEls[i].el.style.transform = '';
+    touchedCells.clear();
+    touchedEls.clear();
+  }
+
+  /* ============ 物理积分（弹簧-阻尼） ============ */
+  function frame() {
+    var now = performance.now();
+    var dt = Math.min(34, now - lastFrame);
+    lastFrame = now;
+    var dtN = dt / 16.7;
+
+    fxUpdate(now, dt);   // 霓虹墨水特效层
+
+    // 自动演示：虚拟手指沿椭圆轨迹按压
+    if (demo.active && !mouse.active) {
+      var el = now - demo.t0;
+      if (el > demo.dur) {
+        demo.active = false;
+      } else {
+        var t = el / demo.dur;
+        var ang = t * Math.PI * 3.4;
+        var rr = Math.min(W, H) * 0.26 * (0.3 + 0.7 * Math.sin(Math.PI * t));
+        mouse.x = W * 0.5 + Math.cos(ang) * rr;
+        mouse.y = H * 0.44 + Math.sin(ang) * rr * 0.62;
+        mouse.active = true;
+        if (now - lastRipple > 180) { lastRipple = now; pushRipple(mouse.x, mouse.y, 11); }
+      }
+    }
+
+    var mActive = mouse.active;
+    var maxDisp = 0;
+    for (var k = 0; k < nodes.length; k++) {
+      var n = nodes[k];
+      var tx = n.rx, ty = n.ry;
+
+      // 按压凹陷：向按压点内聚的力场，随距离平滑衰减
+      if (mActive) {
+        var ddx = n.rx - mouse.x, ddy = n.ry - mouse.y;
+        var d = Math.sqrt(ddx * ddx + ddy * ddy);
+        if (d > 0.5) {
+          var inv = 1 / d;
+          if (d < RADIUS) {
+            var t0 = d / RADIUS, t2 = 1 - t0 * t0;
+            var mag = DEPTH * mouse.strength * t2 * t2;
+            tx += ddx * inv * mag; ty += ddy * inv * mag;
+          } else if (d < RADIUS * BASIN) {
+            var t1 = d / (RADIUS * BASIN), g1 = 1 - t1;
+            var mag2 = DEPTH * 0.16 * mouse.strength * g1 * g1;
+            tx += ddx * inv * mag2; ty += ddy * inv * mag2;
+          }
+        }
+      }
+
+      // 波纹：向外传播、随时间与距离衰减的正弦波
+      if (ripples.length) {
+        for (var rk = 0; rk < ripples.length; rk++) {
+          var rp = ripples[rk];
+          var rdx = n.rx - rp.x, rdy = n.ry - rp.y;
+          var rd = Math.sqrt(rdx * rdx + rdy * rdy);
+          if (rd > 0.5 && rd < RIP_R) {
+            var age = now - rp.t;
+            var amp = rp.a * Math.sin(rd / 42 - age / 110) *
+              Math.exp(-age / 340) * Math.exp(-rd / 280) *
+              Math.sin(Math.PI * (1 - rd / RIP_R));
+            if (amp !== 0) { tx += (rdx / rd) * amp; ty += (rdy / rd) * amp; }
+          }
+        }
+      }
+
+      // 弹簧-阻尼积分（半隐式欧拉）
+      var kk = 0.12 * dtN;
+      n.vx += (tx - n.x) * kk;
+      n.vy += (ty - n.y) * kk;
+      var damp = Math.pow(0.86, dtN);
+      n.vx *= damp; n.vy *= damp;
+      n.x += n.vx * dtN;
+      n.y += n.vy * dtN;
+      var dx2 = n.x - n.rx, dy2 = n.y - n.ry;
+      var dd = dx2 * dx2 + dy2 * dy2;
+      if (dd > maxDisp) maxDisp = dd;
+    }
+    maxDisp = Math.sqrt(maxDisp);
+
+    if (ripples.length) {
+      ripples = ripples.filter(function (rp) { return now - rp.t < 1500; });
+    }
+
+    var active = mActive || ripples.length > 0 || maxDisp > 0.12;
+    if (active) {
+      render(now);
+      gaugeInner.textContent = '按压强度 ' + Math.min(100, Math.round(maxDisp / DEPTH * 100)) + '%';
+      dirty = true;
+    } else {
+      gaugeInner.textContent = '按压强度 0%';
+      if (dirty) { dirty = false; resetTransforms(); }
+    }
+  }
+
+  /* ============ matrix3d 扭曲渲染 ============ */
+  function render(now) {
+    // 波及区域（鼠标 ± 凹陷范围 ∪ 各波纹 ± 传播半径）
+    var x0 = 0, y0 = 0, x1 = W, y1 = H;
+    if (mouse.active) {
+      var rr = RADIUS * BASIN + 30;
+      if (mouse.x - rr < x0) x0 = mouse.x - rr;
+      if (mouse.y - rr < y0) y0 = mouse.y - rr;
+      if (mouse.x + rr > x1) x1 = mouse.x + rr;
+      if (mouse.y + rr > y1) y1 = mouse.y + rr;
+    }
+    for (var i = 0; i < ripples.length; i++) {
+      var rp = ripples[i], rr2 = RIP_R + 20;
+      if (rp.x - rr2 < x0) x0 = rp.x - rr2;
+      if (rp.y - rr2 < y0) y0 = rp.y - rr2;
+      if (rp.x + rr2 > x1) x1 = rp.x + rr2;
+      if (rp.y + rr2 > y1) y1 = rp.y + rr2;
+    }
+
+    // 背景单元：共享节点位置 → 无缝四边形扭曲
+    var newC = [];
+    for (i = 0; i < cells.length; i++) {
+      var c = cells[i];
+      var cx = c.ci * cw, cy = c.rj * ch;
+      if (cx + cw < x0 || cx > x1 || cy + ch < y0 || cy > y1) continue;
+      var nTL = nodes[c.tl], nTR = nodes[c.tr], nBR = nodes[c.br], nBL = nodes[c.bl];
+      var dTL = Math.hypot(nTL.x - nTL.rx, nTL.y - nTL.ry);
+      var dTR = Math.hypot(nTR.x - nTR.rx, nTR.y - nTR.ry);
+      var dBR = Math.hypot(nBR.x - nBR.rx, nBR.y - nBR.ry);
+      var dBL = Math.hypot(nBL.x - nBL.rx, nBL.y - nBL.ry);
+      if (Math.max(dTL, dTR, dBR, dBL) < 0.2) {
+        if (c.el.style.transform) c.el.style.transform = '';
+        continue;
+      }
+      var m = quadMatrix(cw, ch, [nTL.x, nTL.y], [nTR.x, nTR.y], [nBR.x, nBR.y], [nBL.x, nBL.y]);
+      c.el.style.transform = m + ' translateZ(' + (-(dTL + dTR + dBR + dBL) * 0.28).toFixed(2) + 'px)';
+      newC.push(c);
+    }
+    for (i = 0; i < cells.length; i++) {
+      if (!newC.includes(cells[i])) cells[i].el.style.transform = '';
+    }
+
+    // 内容元素：四角位移采样 → 透视 matrix3d
+    var newE = [];
+    for (i = 0; i < warpEls.length; i++) {
+      var w = warpEls[i];
+      if (w.x + w.w < x0 || w.x > x1 || w.y + w.h < y0 || w.y > y1) continue;
+      var p0 = sample(w.x, w.y);
+      var p1 = sample(w.x + w.w, w.y);
+      var p2 = sample(w.x + w.w, w.y + w.h);
+      var p3 = sample(w.x, w.y + w.h);
+      var pc = sample(w.x + w.w / 2, w.y + w.h / 2);
+      var mx = Math.max(
+        Math.hypot(p0.dx, p0.dy), Math.hypot(p1.dx, p1.dy),
+        Math.hypot(p2.dx, p2.dy), Math.hypot(p3.dx, p3.dy), Math.hypot(pc.dx, pc.dy));
+      if (mx < 0.2) {
+        if (w.el.style.transform) w.el.style.transform = '';
+        continue;
+      }
+      var m2 = quadMatrix(w.w, w.h,
+        [w.x + p0.dx, w.y + p0.dy], [w.x + p1.dx, w.y + p1.dy],
+        [w.x + p2.dx, w.y + p2.dy], [w.x + p3.dx, w.y + p3.dy]);
+      w.el.style.transform = m2 + ' translateZ(' + (-Math.hypot(pc.dx, pc.dy) * 1.1).toFixed(2) + 'px)';
+      newE.push(w);
+    }
+    for (i = 0; i < warpEls.length; i++) {
+      if (!newE.includes(warpEls[i])) warpEls[i].el.style.transform = '';
+    }
+  }
+
+  /* ============ 霓虹墨水特效（点击爆炸 + 拖拽轨迹） ============ */
+  var fxCanvas = document.getElementById('fxCanvas');
+  var fctx = fxCanvas.getContext('2d');
+  var DPR = window.devicePixelRatio || 1;
+  var blobs = [], rings = [], trails = [];
+  var trailHue = 180, lastTrailX = -99999, lastTrailY = -99999;
+  var fxDirty = false;
+
+  function neonHue() { return Math.random() * 360; }
+
+  function sizeFx() {
+    fxCanvas.width = Math.round(W * DPR);
+    fxCanvas.height = Math.round(H * DPR);
+    fctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    fxDirty = true;
+  }
+
+  // 点击爆炸：扩散圆环 + 阻尼墨水粒子，0.5s 扩散到约 200px，随后 2s 淡出
+  function explode(x, y) {
+    var hue = neonHue();
+    var hue2 = (hue + 45 + Math.random() * 70) % 360;
+    rings.push({ x: x, y: y, born: performance.now(), hue: hue });
+    var n = 104;
+    for (var i = 0; i < n; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var spd = 320 + Math.random() * 440;   // 阻尼 3.8 → 行程约 84–200px
+      var h = (Math.random() < 0.32 ? hue2 : hue + (Math.random() * 26 - 13));
+      h = (h + 360) % 360;
+      blobs.push({
+        x: x + (Math.random() - 0.5) * 10, y: y + (Math.random() - 0.5) * 10,
+        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+        r: 2 + Math.random() * 4.5,
+        hue: h, sat: 95 + Math.random() * 5, light: 58 + Math.random() * 14,
+        born: performance.now()
+      });
+    }
+    if (blobs.length > 700) blobs.splice(0, blobs.length - 700);
+    if (rings.length > 6) rings.shift();
+  }
+
+  // 拖拽轨迹点：自带随机相位/频率，渲染时正弦扭动，2.2s 内渐隐消散
+  function trailPoint(x, y) {
+    trails.push({
+      x: x, y: y,
+      phase: Math.random() * Math.PI * 2,
+      freq: 2 + Math.random() * 2.4,
+      amp0: 4 + Math.random() * 7,
+      r: 4.5 + Math.random() * 3.5,
+      hue: trailHue,
+      born: performance.now()
+    });
+    if (trails.length > 220) trails.splice(0, trails.length - 220);
+  }
+
+  function fxUpdate(now, dt) {
+    var any = blobs.length || rings.length || trails.length;
+    if (!any) {
+      if (fxDirty) { fctx.clearRect(0, 0, W, H); fxDirty = false; }
+      return;
+    }
+    fxDirty = true;
+    fctx.clearRect(0, 0, W, H);
+    var dtS = dt / 1000;
+
+    // 扩散圆环：0.5s 内 0→200px，随即淡出
+    var aliveR = [];
+    for (var r = 0; r < rings.length; r++) {
+      var rg = rings[r];
+      var ageR = now - rg.born;
+      if (ageR > 620) continue;
+      var k = Math.min(1, ageR / 500);
+      var rad = 200 * k;
+      var ar = (1 - k) * 0.55;
+      fctx.beginPath();
+      fctx.strokeStyle = 'hsla(' + (rg.hue | 0) + ',100%,70%,' + ar.toFixed(3) + ')';
+      fctx.shadowColor = 'hsla(' + (rg.hue | 0) + ',100%,70%,' + (ar * 0.85).toFixed(3) + ')';
+      fctx.shadowBlur = 20;
+      fctx.lineWidth = 3 + (1 - k) * 6;
+      fctx.arc(rg.x, rg.y, rad, 0, Math.PI * 2);
+      fctx.stroke();
+      aliveR.push(rg);
+    }
+    rings = aliveR;
+
+    // 墨水粒子：指数阻尼扩散，0.5s 后进入 2s 淡出
+    var aliveB = [];
+    for (var i = 0; i < blobs.length; i++) {
+      var b = blobs[i];
+      var ageB = now - b.born;
+      if (ageB > 2500) continue;
+      var f = Math.exp(-3.8 * dtS);
+      b.vx *= f; b.vy *= f;
+      b.x += b.vx * dtS; b.y += b.vy * dtS;
+      var a = ageB < 500 ? 1 : 1 - (ageB - 500) / 2000;
+      var rr = b.r * (ageB < 500 ? 1 - (ageB / 500) * 0.35 : 0.65);
+      if (a > 0.02 && rr > 0.1) {
+        fctx.beginPath();
+        fctx.fillStyle = 'hsla(' + (b.hue | 0) + ',' + (b.sat | 0) + '%,' + (b.light | 0) + '%,' + a.toFixed(3) + ')';
+        fctx.shadowColor = 'hsla(' + (b.hue | 0) + ',100%,72%,' + (a * 0.9).toFixed(3) + ')';
+        fctx.shadowBlur = 14;
+        fctx.arc(b.x, b.y, rr, 0, Math.PI * 2);
+        fctx.fill();
+        aliveB.push(b);
+      }
+    }
+    blobs = aliveB;
+
+    // 拖拽轨迹：逐段蛇形扭动 + 线宽/透明度随寿命衰减
+    var aliveT = [];
+    for (var t = 0; t < trails.length; t++) {
+      if (now - trails[t].born < 2200) aliveT.push(trails[t]);
+    }
+    trails = aliveT;
+    if (trails.length >= 2) {
+      fctx.lineCap = 'round';
+      fctx.lineJoin = 'round';
+      for (var t2 = 0; t2 < trails.length - 1; t2++) {
+        var p0 = trails[t2], p1 = trails[t2 + 1];
+        var a0 = 1 - (now - p0.born) / 2200, a1 = 1 - (now - p1.born) / 2200;
+        var w0x = p0.amp0 * a0 * Math.sin((now / 1000) * p0.freq + p0.phase);
+        var w0y = p0.amp0 * a0 * Math.cos((now / 1000) * p0.freq * 0.92 + p0.phase * 1.3);
+        var w1x = p1.amp0 * a1 * Math.sin((now / 1000) * p1.freq + p1.phase);
+        var w1y = p1.amp0 * a1 * Math.cos((now / 1000) * p1.freq * 0.92 + p1.phase * 1.3);
+        var rw = (p0.r * a0 + p1.r * a1) / 2;
+        if (rw < 0.05) continue;
+        var alpha = (a0 + a1) / 2;
+        fctx.beginPath();
+        fctx.strokeStyle = 'hsla(' + (p0.hue | 0) + ',95%,68%,' + alpha.toFixed(3) + ')';
+        fctx.shadowColor = 'hsla(' + (p0.hue | 0) + ',100%,74%,' + (alpha * 0.9).toFixed(3) + ')';
+        fctx.shadowBlur = 12;
+        fctx.lineWidth = rw * 2;
+        fctx.moveTo(p0.x + w0x, p0.y + w0y);
+        fctx.lineTo(p1.x + w1x, p1.y + w1y);
+        fctx.stroke();
+      }
+    } else if (trails.length === 1) {
+      var sp = trails[0];
+      var aa = 1 - (now - sp.born) / 2200;
+      fctx.beginPath();
+      fctx.fillStyle = 'hsla(' + (sp.hue | 0) + ',95%,68%,' + aa.toFixed(3) + ')';
+      fctx.shadowColor = 'hsla(' + (sp.hue | 0) + ',100%,74%,' + (aa * 0.9).toFixed(3) + ')';
+      fctx.shadowBlur = 12;
+      fctx.arc(sp.x, sp.y, sp.r * aa, 0, Math.PI * 2);
+      fctx.fill();
+    }
+  }
+
+  /* ============ 波纹与鼠标事件 ============ */
+  function pushRipple(x, y, a) {
+    ripples.push({ x: x, y: y, t: performance.now(), a: a });
+    if (ripples.length > 6) ripples.shift();
+  }
+
+  function onMove(e) {
+    var r = cloth.getBoundingClientRect();
+    var nx = e.clientX - r.left, ny = e.clientY - r.top;
+    var sp = Math.hypot(nx - mouse.x, ny - mouse.y);
+    mouse.x = nx; mouse.y = ny;
+    mouse.active = nx >= 0 && nx <= W && ny >= 0 && ny <= H;
+    if (demo.active && mouse.active) demo.active = false;   // 用户接管
+    if (!mouse.active) return;
+    var now = performance.now();
+    if (sp > 26 && now - lastRipple > 140) {
+      lastRipple = now;
+      pushRipple(nx, ny, Math.min(15, 5 + sp * 0.1));
+    }
+    // 按住拖动：留下扭动消散的彩色轨迹
+    if (mouse.pressed && Math.hypot(nx - lastTrailX, ny - lastTrailY) > 8) {
+      lastTrailX = nx; lastTrailY = ny;
+      trailPoint(nx, ny);
+      trailHue = (trailHue + sp * 0.14) % 360;
+    }
+  }
+
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
+    var r = cloth.getBoundingClientRect();
+    mouse.x = e.clientX - r.left;
+    mouse.y = e.clientY - r.top;
+    mouse.active = true;
+    mouse.pressed = true;
+    mouse.strength = 1.6;
+    document.body.classList.add('pressed');
+    pushRipple(mouse.x, mouse.y, 16);
+    explode(mouse.x, mouse.y);       // 点击：墨水炸开
+    trailHue = neonHue();            // 本次拖拽轨迹的霓虹主色
+    lastTrailX = mouse.x; lastTrailY = mouse.y;
+    if (window.gsap) gsap.fromTo(gaugeInner, { scale: 0.9 }, { scale: 1, duration: 0.28, ease: 'back.out(2.5)' });
+  });
+  window.addEventListener('mouseup', function () {
+    mouse.pressed = false;
+    mouse.strength = 1;
+    document.body.classList.remove('pressed');
+  });
+  document.addEventListener('mouseout', function (e) { if (!e.relatedTarget) mouse.active = false; });
+  window.addEventListener('blur', function () {
+    mouse.active = false; demo.active = false;
+    mouse.pressed = false; mouse.strength = 1;
+    document.body.classList.remove('pressed');
+  });
+
+  var rsT;
+  window.addEventListener('resize', function () {
+    clearTimeout(rsT);
+    rsT = setTimeout(build, 160);
+  });
+
+  /* ============ UI：toast / 文档面板 / 自动演示 ============ */
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(function () { toastEl.classList.remove('show'); }, 2200);
+  }
+
+  function startDemo() {
+    if (mouse.active) { toast('正在手动按压中，移开鼠标后会自动演示'); return; }
+    demo.active = true;
+    demo.t0 = performance.now();
+    toast('自动按压演示中 · 移动鼠标可随时接管');
+  }
+
+  function openDoc() {
+    docModal.classList.add('open');
+    docModal.setAttribute('aria-hidden', 'false');
+    var er = docPanel.getBoundingClientRect();
+    var cr = cloth.getBoundingClientRect();
+    warpEls.push({ el: docPanel, x: er.left - cr.left, y: er.top - cr.top, w: er.width, h: er.height });
+  }
+  function closeDoc() {
+    docModal.classList.remove('open');
+    docModal.setAttribute('aria-hidden', 'true');
+    docPanel.style.transform = '';
+    for (var i = warpEls.length - 1; i >= 0; i--) {
+      if (warpEls[i].el === docPanel) warpEls.splice(i, 1);
+    }
+  }
+
+  document.getElementById('btnDemo').addEventListener('click', startDemo);
+  document.getElementById('btnDoc').addEventListener('click', openDoc);
+  document.getElementById('navDoc').addEventListener('click', openDoc);
+  document.getElementById('docClose').addEventListener('click', closeDoc);
+  docModal.addEventListener('click', function (e) { if (e.target === docModal) closeDoc(); });
+  window.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDoc(); });
+  document.querySelectorAll('.nav-links span').forEach(function (s) {
+    s.addEventListener('click', function () {
+      if (s.getAttribute('data-nav') === 'doc') openDoc();
+      else toast('演示中：移动鼠标按压布料');
+    });
+  });
+
+  /* ============ GSAP 入场编排 ============ */
+  function entrance() {
+    if (!window.gsap) return;
+    gsap.fromTo('#page', { opacity: 0, y: 46, scale: 0.985 }, { opacity: 1, y: 0, scale: 1, duration: 1.15, ease: 'power3.out' });
+    gsap.fromTo('.nav', { opacity: 0, y: -18 }, { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out', delay: 0.25 });
+    gsap.fromTo('.hero', { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out', delay: 0.4 });
+    gsap.fromTo('.cards', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out', delay: 0.55 });
+    gsap.fromTo('#gauge', { opacity: 0 }, { opacity: 1, duration: 0.6, delay: 0.8 });
+    gsap.fromTo('#hint', { opacity: 0 }, { opacity: 1, duration: 0.6, delay: 0.95 });
+  }
+
+  /* ============ 启动 ============ */
+  build();
+  entrance();
+  if (REDUCE) return;   // 尊重 reduced-motion：保持静态
+
+  if (window.gsap && gsap.ticker) {
+    gsap.ticker.add(frame);
+  } else {
+    var loop = function () { frame(); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+
+  // 自测 / 演示模式：?auto=1 自动开始按压演示
+  if (/[?&]auto=1/.test(location.search)) startDemo();
+
+})();
+
+</script>
+</body>
+</html>
